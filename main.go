@@ -49,8 +49,6 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 		errAcc = errors.Join(errAcc, err)
 	}
 
-	// security groups
-
 	svc := ec2.NewFromConfig(cfg)
 
 	// Describe Security Groups
@@ -65,8 +63,9 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 	for _, group := range output.SecurityGroups {
 		l.logger.Debug("SG ID: ", group.GroupId)
 		securityGroups = append(securityGroups, map[string]interface{}{
-			"SecurityGroupID": aws.ToString(group.GroupId),
-			"IpPermissions":   group.IpPermissions,
+			"SecurityGroupID":     aws.ToString(group.GroupId),
+			"IpPermissions":       group.IpPermissions,
+			"IpPermissionsEgress": group.IpPermissionsEgress,
 		})
 	}
 
