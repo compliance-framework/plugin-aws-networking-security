@@ -105,7 +105,8 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 						},
 						Labels: map[string]string{
 							"package":           string(result.Policy.Package),
-							"type":              "aws-cloud--network-security",
+							"type":              "aws",
+							"service":           "security-groups",
 							"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 						},
 					})
@@ -121,7 +122,8 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 						},
 						Labels: map[string]string{
 							"package":           string(result.Policy.Package),
-							"type":              "aws-cloud--network-security",
+							"type":              "aws",
+							"service":           "security-groups",
 							"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 						},
 					})
@@ -145,7 +147,8 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 						},
 						Labels: map[string]string{
 							"package":           string(result.Policy.Package),
-							"type":              "aws-cloud--network-security",
+							"type":              "aws",
+							"service":           "security-groups",
 							"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 						},
 					})
@@ -168,7 +171,8 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 							},
 							Labels: map[string]string{
 								"package":           string(result.Policy.Package),
-								"type":              "aws-cloud--network-security",
+								"type":              "aws",
+								"service":           "security-groups",
 								"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 							},
 						})
@@ -200,7 +204,7 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 			assessmentResult.End = timestamppb.New(endTime)
 
 			streamId, err := sdk.SeededUUID(map[string]string{
-				"type":              "aws-cloud--network-security",
+				"type":              "aws",
 				"_policy":           policyPath,
 				"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 			})
@@ -221,8 +225,10 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 			err = apiHelper.CreateResult(
 				streamId.String(),
 				map[string]string{
-					"type":    "aws-cloud--network-security",
-					"_policy": policyPath,
+					"type":              "aws",
+					"service":           "security-groups",
+					"_policy":           policyPath,
+					"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 				},
 				policyPath,
 				assessmentResult.Result())
