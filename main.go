@@ -200,8 +200,9 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 			assessmentResult.End = timestamppb.New(endTime)
 
 			streamId, err := sdk.SeededUUID(map[string]string{
-				"type":    "aws-cloud--network-security",
-				"_policy": policyPath,
+				"type":              "aws-cloud--network-security",
+				"_policy":           policyPath,
+				"security_group_id": fmt.Sprintf("%v", instance["SecurityGroupID"]),
 			})
 			if err != nil {
 				l.logger.Error("Failed to seedUUID", "error", err)
