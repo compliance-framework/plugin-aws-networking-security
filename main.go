@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	policyManager "github.com/compliance-framework/agent/policy-manager"
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
 	"github.com/compliance-framework/plugin-aws-networking-security/internal"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
+	"iter"
 	"os"
 	"slices"
 )
@@ -19,11 +22,6 @@ import (
 type CompliancePlugin struct {
 	logger hclog.Logger
 	config map[string]string
-}
-
-type Tag struct {
-	Key   string `json:"Key"`
-	Value string `json:"Value"`
 }
 
 func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.ConfigureResponse, error) {
@@ -43,65 +41,27 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 		accumulatedErrors = errors.Join(accumulatedErrors, err)
 	}
 
-	svc := ec2.NewFromConfig(cfg)
-
-	// Describe Security Groups
-	output, err := svc.DescribeSecurityGroups(context.TODO(), &ec2.DescribeSecurityGroupsInput{})
-	if err != nil {
-		l.logger.Error("cant list security groups", "error", err)
-		evalStatus = proto.ExecutionStatus_FAILURE
-		accumulatedErrors = errors.Join(accumulatedErrors, err)
-	}
+	client := ec2.NewFromConfig(cfg)
 
 	// Run policy checks
-	for _, group := range output.SecurityGroups {
-		activities := make([]*proto.Activity, 0)
-		findings := make([]*proto.Finding, 0)
-		observations := make([]*proto.Observation, 0)
+	for group, err := range getSecurityGroups(ctx, client) {
+		if err != nil {
+			l.logger.Error("unable to get instance", "error", err)
+			evalStatus = proto.ExecutionStatus_FAILURE
+			accumulatedErrors = errors.Join(accumulatedErrors, err)
+			break
+		}
 
 		labels := map[string]string{
-			"type":        "aws",
-			"service":     "security-groups",
-			"instance-id": *group.GroupId,
+			"provider": "aws",
+			"type":     "security-group",
+			"group-id": aws.ToString(group.GroupId),
+			"_vpc-id":  aws.ToString(group.VpcId),
 		}
-		subjects := []*proto.SubjectReference{
-			{
-				Type: "aws-security-group",
-				Attributes: map[string]string{
-					"type":          "aws",
-					"service":       "security-group",
-					"instance-id":   *group.GroupId,
-					"instance-name": *group.GroupName,
-					"vpc-id":        *group.VpcId,
-				},
-				Title: internal.StringAddressed("AWS Security Group"),
-				Props: []*proto.Property{
-					{
-						Name:  "security-group-id",
-						Value: *group.GroupId,
-					},
-					{
-						Name:  "security-group-name",
-						Value: *group.GroupName,
-					},
-				},
-			},
-			{
-				Type: "aws-vpc",
-				Attributes: map[string]string{
-					"type":    "aws",
-					"service": "vpc",
-					"vpc-id":  fmt.Sprintf("%v", *group.VpcId),
-				},
-				Title: internal.StringAddressed("AWS VPC"),
-				Props: []*proto.Property{
-					{
-						Name:  "vpc-id",
-						Value: fmt.Sprintf("%v", *group.VpcId),
-					},
-				},
-			},
-		}
+
+		activities := make([]*proto.Activity, 0)
+		evidences := make([]*proto.Evidence, 0)
+
 		actors := []*proto.OriginActor{
 			{
 				Title: "The Continuous Compliance Framework",
@@ -126,9 +86,49 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 				},
 			},
 		}
-		components := []*proto.ComponentReference{
+		components := []*proto.Component{
 			{
-				Identifier: "common-components/aws-security-group",
+				Identifier:  "common-components/amazon-security-group",
+				Type:        "service",
+				Title:       "Amazon Security Groups",
+				Description: "Amazon Security Groups act as virtual firewalls for AWS resources such as EC2 instances and RDS databases. They control inbound and outbound traffic at the instance level using rule-based configurations tied to ports, protocols, and CIDR ranges. Security Groups are stateful and can reference other groups to enforce dynamic trust boundaries within a VPC.",
+				Purpose:     "To enforce network segmentation and access control policies at the resource level, providing a configurable and auditable security boundary for cloud-based assets in support of least privilege and Zero Trust architectures.",
+			},
+		}
+		inventory := []*proto.InventoryItem{
+			{
+				Identifier: fmt.Sprintf("aws-security-group/%s", aws.ToString(group.GroupId)),
+				Type:       "firewall",
+				Title:      fmt.Sprintf("Amazon Security Group [%s]", aws.ToString(group.GroupId)),
+				Props: []*proto.Property{
+					{
+						Name:  "group-id",
+						Value: aws.ToString(group.GroupId),
+					},
+					{
+						Name:  "group-name",
+						Value: aws.ToString(group.GroupName),
+					},
+					{
+						Name:  "vpc-id",
+						Value: aws.ToString(group.VpcId),
+					},
+				},
+				ImplementedComponents: []*proto.InventoryItemImplementedComponent{
+					{
+						Identifier: "common-components/amazon-security-group",
+					},
+				},
+			},
+		}
+		subjects := []*proto.Subject{
+			{
+				Type:       proto.SubjectType_SUBJECT_TYPE_COMPONENT,
+				Identifier: "common-components/amazon-security-group",
+			},
+			{
+				Type:       proto.SubjectType_SUBJECT_TYPE_INVENTORY_ITEM,
+				Identifier: fmt.Sprintf("aws-security-group/%s", aws.ToString(group.GroupId)),
 			},
 		}
 
@@ -138,32 +138,23 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 				l.logger,
 				internal.MergeMaps(
 					labels,
-					map[string]string{
-						"_policy_path": policyPath,
-					},
+					map[string]string{},
 				),
 				subjects,
 				components,
+				inventory,
 				actors,
 				activities,
 			)
-			obs, finds, err := processor.GenerateResults(ctx, policyPath, group)
-			observations = slices.Concat(observations, obs)
-			findings = slices.Concat(findings, finds)
+			evidence, err := processor.GenerateResults(ctx, policyPath, group)
+			evidences = slices.Concat(evidences, evidence)
 			if err != nil {
 				accumulatedErrors = errors.Join(accumulatedErrors, err)
 			}
 		}
 
-		if err = apiHelper.CreateObservations(ctx, observations); err != nil {
-			l.logger.Error("Failed to send observations", "error", err)
-			return &proto.EvalResponse{
-				Status: proto.ExecutionStatus_FAILURE,
-			}, err
-		}
-
-		if err = apiHelper.CreateFindings(ctx, findings); err != nil {
-			l.logger.Error("Failed to send findings", "error", err)
+		if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+			l.logger.Error("Failed to send evidences", "error", err)
 			return &proto.EvalResponse{
 				Status: proto.ExecutionStatus_FAILURE,
 			}, err
@@ -173,6 +164,22 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 	return &proto.EvalResponse{
 		Status: evalStatus,
 	}, accumulatedErrors
+}
+
+func getSecurityGroups(ctx context.Context, client *ec2.Client) iter.Seq2[types.SecurityGroup, error] {
+	return func(yield func(types.SecurityGroup, error) bool) {
+		result, err := client.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{})
+		if err != nil {
+			yield(types.SecurityGroup{}, err)
+			return
+		}
+
+		for _, group := range result.SecurityGroups {
+			if !yield(group, nil) {
+				return
+			}
+		}
+	}
 }
 
 func main() {
