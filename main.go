@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
+	"os"
+	"slices"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -14,9 +18,6 @@ import (
 	"github.com/compliance-framework/plugin-aws-networking-security/internal"
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
-	"iter"
-	"os"
-	"slices"
 )
 
 type CompliancePlugin struct {
@@ -27,6 +28,10 @@ type CompliancePlugin struct {
 func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.ConfigureResponse, error) {
 	l.config = req.GetConfig()
 	return &proto.ConfigureResponse{}, nil
+}
+
+func (l *CompliancePlugin) Init(req *proto.InitRequest, apiHelper runner.ApiHelper) (*proto.InitResponse, error) {
+	return &proto.InitResponse{}, nil
 }
 
 func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.ApiHelper) (*proto.EvalResponse, error) {
@@ -197,7 +202,7 @@ func main() {
 	goplugin.Serve(&goplugin.ServeConfig{
 		HandshakeConfig: runner.HandshakeConfig,
 		Plugins: map[string]goplugin.Plugin{
-			"runner": &runner.RunnerGRPCPlugin{
+			"runner": &runner.RunnerV2GRPCPlugin{
 				Impl: compliancePluginObj,
 			},
 		},
