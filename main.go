@@ -3,15 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
-	"iter"
-	"os"
 	"slices"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	policyManager "github.com/compliance-framework/agent/policy-manager"
 	"github.com/compliance-framework/agent/runner"
 	"github.com/compliance-framework/agent/runner/proto"
@@ -39,152 +35,423 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 	evalStatus := proto.ExecutionStatus_SUCCESS
 	var accumulatedErrors error
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(os.Getenv("AWS_REGION")))
-	if err != nil {
-		l.logger.Error("unable to load SDK config", "error", err)
-		evalStatus = proto.ExecutionStatus_FAILURE
-		accumulatedErrors = errors.Join(accumulatedErrors, err)
+	// Resolve regions from config or environment
+	regions := internal.ResolveRegions(l.config)
+
+	// Common actors for all evidence
+	actors := []*proto.OriginActor{
+		{
+			Title: "The Continuous Compliance Framework",
+			Type:  "assessment-platform",
+			Links: []*proto.Link{
+				{
+					Href: "https://compliance-framework.github.io/docs/",
+					Rel:  internal.StringAddressed("reference"),
+					Text: internal.StringAddressed("The Continuous Compliance Framework"),
+				},
+			},
+		},
+		{
+			Title: "Continuous Compliance Framework - AWS Networking Security Plugin",
+			Type:  "tool",
+			Links: []*proto.Link{
+				{
+					Href: "https://github.com/compliance-framework/plugin-aws-networking-security",
+					Rel:  internal.StringAddressed("reference"),
+					Text: internal.StringAddressed("The Continuous Compliance Framework AWS Networking Security Plugin"),
+				},
+			},
+		},
 	}
 
-	client := ec2.NewFromConfig(cfg)
+	// Iterate over each configured region
+	for _, region := range regions {
+		l.logger.Info("Collecting resources in region", "region", region)
 
-	// Run policy checks
-	for group, err := range getSecurityGroups(ctx, client) {
+		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 		if err != nil {
-			l.logger.Error("unable to get instance", "error", err)
+			l.logger.Error("unable to load SDK config for region", "region", region, "error", err)
 			evalStatus = proto.ExecutionStatus_FAILURE
 			accumulatedErrors = errors.Join(accumulatedErrors, err)
-			break
+			continue
 		}
 
-		labels := map[string]string{
-			"provider": "aws",
-			"type":     "security-group",
-			"group-id": aws.ToString(group.GroupId),
-			"_vpc-id":  aws.ToString(group.VpcId),
-		}
+		client := ec2.NewFromConfig(cfg)
+		logsClient := cloudwatchlogs.NewFromConfig(cfg)
 
-		activities := make([]*proto.Activity, 0)
-		evidences := make([]*proto.Evidence, 0)
-
-		actors := []*proto.OriginActor{
-			{
-				Title: "The Continuous Compliance Framework",
-				Type:  "assessment-platform",
-				Links: []*proto.Link{
-					{
-						Href: "https://compliance-framework.github.io/docs/",
-						Rel:  internal.StringAddressed("reference"),
-						Text: internal.StringAddressed("The Continuous Compliance Framework"),
-					},
-				},
-			},
-			{
-				Title: "Continuous Compliance Framework - Local SSH Plugin",
-				Type:  "tool",
-				Links: []*proto.Link{
-					{
-						Href: "https://github.com/compliance-framework/plugin-local-ssh",
-						Rel:  internal.StringAddressed("reference"),
-						Text: internal.StringAddressed("The Continuous Compliance Framework' Local SSH Plugin"),
-					},
-				},
-			},
-		}
-		components := []*proto.Component{
-			{
-				Identifier:  "common-components/amazon-security-group",
-				Type:        "service",
-				Title:       "Amazon Security Groups",
-				Description: "Amazon Security Groups act as virtual firewalls for AWS resources such as EC2 instances and RDS databases. They control inbound and outbound traffic at the instance level using rule-based configurations tied to ports, protocols, and CIDR ranges. Security Groups are stateful and can reference other groups to enforce dynamic trust boundaries within a VPC.",
-				Purpose:     "To enforce network segmentation and access control policies at the resource level, providing a configurable and auditable security boundary for cloud-based assets in support of least privilege and Zero Trust architectures.",
-			},
-		}
-		inventory := []*proto.InventoryItem{
-			{
-				Identifier: fmt.Sprintf("aws-security-group/%s", aws.ToString(group.GroupId)),
-				Type:       "firewall",
-				Title:      fmt.Sprintf("Amazon Security Group [%s]", aws.ToString(group.GroupId)),
-				Props: []*proto.Property{
-					{
-						Name:  "group-id",
-						Value: aws.ToString(group.GroupId),
-					},
-					{
-						Name:  "group-name",
-						Value: aws.ToString(group.GroupName),
-					},
-					{
-						Name:  "vpc-id",
-						Value: aws.ToString(group.VpcId),
-					},
-				},
-				ImplementedComponents: []*proto.InventoryItemImplementedComponent{
-					{
-						Identifier: "common-components/amazon-security-group",
-					},
-				},
-			},
-		}
-		subjects := []*proto.Subject{
-			{
-				Type:       proto.SubjectType_SUBJECT_TYPE_COMPONENT,
-				Identifier: "common-components/amazon-security-group",
-			},
-			{
-				Type:       proto.SubjectType_SUBJECT_TYPE_INVENTORY_ITEM,
-				Identifier: fmt.Sprintf("aws-security-group/%s", aws.ToString(group.GroupId)),
-			},
-		}
-
-		for _, policyPath := range request.GetPolicyPaths() {
-			// Explicitly reset steps to make things readable
-			processor := policyManager.NewPolicyProcessor(
-				l.logger,
-				internal.MergeMaps(
-					labels,
-					map[string]string{},
-				),
-				subjects,
-				components,
-				inventory,
-				actors,
-				activities,
-			)
-			evidence, err := processor.GenerateResults(ctx, policyPath, group)
-			evidences = slices.Concat(evidences, evidence)
+		// Collect and evaluate VPCs
+		for vpc, err := range internal.PaginatedDescribeVpcs(ctx, client) {
 			if err != nil {
+				l.logger.Error("unable to get VPC", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
 				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			vpcCtx := internal.BuildVpcEvidenceContext(vpc, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						vpcCtx.Labels,
+						map[string]string{},
+					),
+					vpcCtx.Subjects,
+					vpcCtx.Components,
+					vpcCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, vpc)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
 			}
 		}
 
-		if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
-			l.logger.Error("Failed to send evidences", "error", err)
-			return &proto.EvalResponse{
-				Status: proto.ExecutionStatus_FAILURE,
-			}, err
+		// Collect and evaluate Subnets
+		for subnet, err := range internal.PaginatedDescribeSubnets(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get Subnet", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			subnetCtx := internal.BuildSubnetEvidenceContext(subnet, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						subnetCtx.Labels,
+						map[string]string{},
+					),
+					subnetCtx.Subjects,
+					subnetCtx.Components,
+					subnetCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, subnet)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate Security Groups
+		for group, err := range internal.PaginatedDescribeSecurityGroups(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get Security Group", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			sgCtx := internal.BuildSecurityGroupEvidenceContext(group, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						sgCtx.Labels,
+						map[string]string{},
+					),
+					sgCtx.Subjects,
+					sgCtx.Components,
+					sgCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, group)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate Network ACLs
+		for acl, err := range internal.PaginatedDescribeNetworkAcls(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get Network ACL", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			aclCtx := internal.BuildNetworkAclEvidenceContext(acl, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						aclCtx.Labels,
+						map[string]string{},
+					),
+					aclCtx.Subjects,
+					aclCtx.Components,
+					aclCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, acl)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate Route Tables
+		for rt, err := range internal.PaginatedDescribeRouteTables(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get Route Table", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			rtCtx := internal.BuildRouteTableEvidenceContext(rt, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						rtCtx.Labels,
+						map[string]string{},
+					),
+					rtCtx.Subjects,
+					rtCtx.Components,
+					rtCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, rt)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate Internet Gateways
+		for igw, err := range internal.PaginatedDescribeInternetGateways(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get Internet Gateway", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			igwCtx := internal.BuildInternetGatewayEvidenceContext(igw, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						igwCtx.Labels,
+						map[string]string{},
+					),
+					igwCtx.Subjects,
+					igwCtx.Components,
+					igwCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, igw)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate VPC Endpoints
+		for endpoint, err := range internal.PaginatedDescribeVpcEndpoints(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get VPC Endpoint", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			endpointCtx := internal.BuildVpcEndpointEvidenceContext(endpoint, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						endpointCtx.Labels,
+						map[string]string{},
+					),
+					endpointCtx.Subjects,
+					endpointCtx.Components,
+					endpointCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, endpoint)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate Flow Logs
+		for flowLog, err := range internal.PaginatedDescribeFlowLogs(ctx, client) {
+			if err != nil {
+				l.logger.Error("unable to get Flow Log", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			flowLogCtx := internal.BuildFlowLogEvidenceContext(flowLog, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						flowLogCtx.Labels,
+						map[string]string{},
+					),
+					flowLogCtx.Subjects,
+					flowLogCtx.Components,
+					flowLogCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, flowLog)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
+		}
+
+		// Collect and evaluate Log Groups
+		for logGroup, err := range internal.PaginatedDescribeLogGroups(ctx, logsClient) {
+			if err != nil {
+				l.logger.Error("unable to get Log Group", "error", err)
+				evalStatus = proto.ExecutionStatus_FAILURE
+				accumulatedErrors = errors.Join(accumulatedErrors, err)
+				break
+			}
+
+			logGroupCtx := internal.BuildLogGroupEvidenceContext(logGroup, region)
+			activities := make([]*proto.Activity, 0)
+			evidences := make([]*proto.Evidence, 0)
+
+			for _, policyPath := range request.GetPolicyPaths() {
+				processor := policyManager.NewPolicyProcessor(
+					l.logger,
+					internal.MergeMaps(
+						logGroupCtx.Labels,
+						map[string]string{},
+					),
+					logGroupCtx.Subjects,
+					logGroupCtx.Components,
+					logGroupCtx.Inventory,
+					actors,
+					activities,
+				)
+				evidence, err := processor.GenerateResults(ctx, policyPath, logGroup)
+				evidences = slices.Concat(evidences, evidence)
+				if err != nil {
+					accumulatedErrors = errors.Join(accumulatedErrors, err)
+				}
+			}
+
+			if err = apiHelper.CreateEvidence(ctx, evidences); err != nil {
+				l.logger.Error("Failed to send evidences", "error", err)
+				return &proto.EvalResponse{
+					Status: proto.ExecutionStatus_FAILURE,
+				}, err
+			}
 		}
 	}
 
 	return &proto.EvalResponse{
 		Status: evalStatus,
 	}, accumulatedErrors
-}
-
-func getSecurityGroups(ctx context.Context, client *ec2.Client) iter.Seq2[types.SecurityGroup, error] {
-	return func(yield func(types.SecurityGroup, error) bool) {
-		result, err := client.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{})
-		if err != nil {
-			yield(types.SecurityGroup{}, err)
-			return
-		}
-
-		for _, group := range result.SecurityGroups {
-			if !yield(group, nil) {
-				return
-			}
-		}
-	}
 }
 
 func main() {
