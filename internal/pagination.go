@@ -67,6 +67,25 @@ func PaginatedDescribeSecurityGroups(ctx context.Context, client *ec2.Client) it
 	}
 }
 
+// PaginatedDescribeNetworkInterfaces returns an iterator over all network interfaces in the account/region
+func PaginatedDescribeNetworkInterfaces(ctx context.Context, client *ec2.Client) iter.Seq2[types.NetworkInterface, error] {
+	return func(yield func(types.NetworkInterface, error) bool) {
+		paginator := ec2.NewDescribeNetworkInterfacesPaginator(client, &ec2.DescribeNetworkInterfacesInput{})
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				yield(types.NetworkInterface{}, err)
+				return
+			}
+			for _, networkInterface := range page.NetworkInterfaces {
+				if !yield(networkInterface, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // PaginatedDescribeNetworkAcls returns an iterator over all network ACLs in the account/region
 func PaginatedDescribeNetworkAcls(ctx context.Context, client *ec2.Client) iter.Seq2[types.NetworkAcl, error] {
 	return func(yield func(types.NetworkAcl, error) bool) {

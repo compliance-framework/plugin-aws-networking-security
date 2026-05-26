@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.10
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.47.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.208.0
-	github.com/compliance-framework/agent v0.6.2
+	github.com/compliance-framework/agent v0.7.0
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.7.0
 )
