@@ -218,3 +218,22 @@ func PaginatedDescribeLogGroups(ctx context.Context, client *cloudwatchlogs.Clie
 		}
 	}
 }
+
+// PaginatedDescribeDhcpOptions returns an iterator over all DHCP option sets in the account/region
+func PaginatedDescribeDhcpOptions(ctx context.Context, client *ec2.Client) iter.Seq2[types.DhcpOptions, error] {
+	return func(yield func(types.DhcpOptions, error) bool) {
+		paginator := ec2.NewDescribeDhcpOptionsPaginator(client, &ec2.DescribeDhcpOptionsInput{})
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				yield(types.DhcpOptions{}, err)
+				return
+			}
+			for _, options := range page.DhcpOptions {
+				if !yield(options, nil) {
+					return
+				}
+			}
+		}
+	}
+}

@@ -13,6 +13,8 @@ import (
 
 type RegionDatasets struct {
 	Vpcs                      []types.Vpc
+	VpcAttributes             map[string]VpcAttributeValues
+	DhcpOptions               []types.DhcpOptions
 	Subnets                   []types.Subnet
 	SecurityGroups            []types.SecurityGroup
 	NetworkInterfaces         []types.NetworkInterface
@@ -35,6 +37,22 @@ func CollectRegionDatasets(ctx context.Context, logger hclog.Logger, client *ec2
 		datasets.Vpcs, err = collectSequence(PaginatedDescribeVpcs(ctx, client))
 		if err != nil {
 			logger.Error("unable to get VPC", "error", err)
+			return RegionDatasets{}, err
+		}
+	}
+
+	if requiredDatasets["vpc_attributes"] {
+		datasets.VpcAttributes, err = CollectVpcAttributes(ctx, client, datasets.Vpcs)
+		if err != nil {
+			logger.Error("unable to get VPC attributes", "error", err)
+			return RegionDatasets{}, err
+		}
+	}
+
+	if requiredDatasets["dhcp_options"] {
+		datasets.DhcpOptions, err = collectSequence(PaginatedDescribeDhcpOptions(ctx, client))
+		if err != nil {
+			logger.Error("unable to get DHCP Options", "error", err)
 			return RegionDatasets{}, err
 		}
 	}

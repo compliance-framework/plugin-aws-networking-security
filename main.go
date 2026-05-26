@@ -70,6 +70,7 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 
 	defaultBehaviorMapping := map[string][]string{
 		"aws-vpc-sg-policies": {"sg"},
+		"aws-vpc-policies":    {"vpc"},
 	}
 	policyEval := request.WithDefaultPolicyBehavior(defaultBehaviorMapping)
 	policyPathsByBehavior := buildPolicyPathsByBehavior(policyEval)
@@ -105,7 +106,7 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 		}
 
 		if vpcPolicyPaths := policyPathsByBehavior["vpc"]; len(vpcPolicyPaths) > 0 {
-			result := internal.EvaluateVpcPolicies(deps, vpcPolicyPaths, datasets.Vpcs, region)
+			result := internal.EvaluateVpcPolicies(deps, vpcPolicyPaths, datasets.Vpcs, region, datasets)
 			if fatal := applyResourceEvaluationErrors(result, &evalStatus, &accumulatedErrors, false); fatal != nil {
 				return &proto.EvalResponse{Status: proto.ExecutionStatus_FAILURE}, fatal
 			}
@@ -217,7 +218,7 @@ func buildRequiredDatasets(policyPathsByBehavior map[string][]string) map[string
 
 		switch behavior {
 		case "vpc":
-			markRequiredDatasets(requiredDatasets, "vpcs")
+			markRequiredDatasets(requiredDatasets, "vpcs", "vpc_attributes", "dhcp_options", "subnets", "route_tables", "internet_gateways", "vpc_endpoints", "flow_logs", "log_groups", "transit_gateway_attachments")
 		case "subnet":
 			markRequiredDatasets(requiredDatasets, "subnets")
 		case "sg":

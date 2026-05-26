@@ -126,3 +126,24 @@ func PrefixSecurityGroupEvidenceTitles(evidences []*proto.Evidence, groupName st
 		evidence.Title = groupName + " | " + title
 	}
 }
+
+func PrefixVpcEvidenceTitles(evidences []*proto.Evidence, vpcID string) {
+	vpcID = strings.TrimSpace(vpcID)
+	if vpcID == "" {
+		return
+	}
+
+	for _, evidence := range evidences {
+		if evidence == nil {
+			continue
+		}
+
+		title := strings.TrimSpace(evidence.Title)
+		if title == "" {
+			evidence.Title = vpcID
+			continue
+		}
+
+		evidence.Title = vpcID + " | " + title
+	}
+}
