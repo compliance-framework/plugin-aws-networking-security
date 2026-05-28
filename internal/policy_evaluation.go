@@ -106,9 +106,9 @@ func generateResourceEvidences(ctx context.Context, logger hclog.Logger, actors 
 	return evidences, accumulatedErrors
 }
 
-func PrefixSecurityGroupEvidenceTitles(evidences []*proto.Evidence, groupName string) {
-	groupName = strings.TrimSpace(groupName)
-	if groupName == "" {
+func PrefixEvidenceTitles(evidences []*proto.Evidence, prefix string) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
 		return
 	}
 
@@ -119,52 +119,10 @@ func PrefixSecurityGroupEvidenceTitles(evidences []*proto.Evidence, groupName st
 
 		title := strings.TrimSpace(evidence.Title)
 		if title == "" {
-			evidence.Title = groupName
+			evidence.Title = prefix
 			continue
 		}
 
-		evidence.Title = groupName + " | " + title
-	}
-}
-
-func PrefixVpcEvidenceTitles(evidences []*proto.Evidence, vpcID string) {
-	vpcID = strings.TrimSpace(vpcID)
-	if vpcID == "" {
-		return
-	}
-
-	for _, evidence := range evidences {
-		if evidence == nil {
-			continue
-		}
-
-		title := strings.TrimSpace(evidence.Title)
-		if title == "" {
-			evidence.Title = vpcID
-			continue
-		}
-
-		evidence.Title = vpcID + " | " + title
-	}
-}
-
-func PrefixNetworkAclEvidenceTitles(evidences []*proto.Evidence, networkAclName string) {
-	networkAclName = strings.TrimSpace(networkAclName)
-	if networkAclName == "" {
-		return
-	}
-
-	for _, evidence := range evidences {
-		if evidence == nil {
-			continue
-		}
-
-		title := strings.TrimSpace(evidence.Title)
-		if title == "" {
-			evidence.Title = networkAclName
-			continue
-		}
-
-		evidence.Title = networkAclName + " | " + title
+		evidence.Title = prefix + " | " + title
 	}
 }

@@ -25,7 +25,7 @@ func EvaluateSecurityGroupPolicies(deps EvaluationDependencies, policyPaths []st
 			deps.Logger.Error("unable to build security group policy input", "group_id", aws.ToString(group.GroupId), "region", region, "error", err)
 		},
 		func(evidences []*proto.Evidence, group types.SecurityGroup) {
-			PrefixSecurityGroupEvidenceTitles(evidences, aws.ToString(group.GroupName))
+			PrefixEvidenceTitles(evidences, aws.ToString(group.GroupName))
 		},
 	)
 }

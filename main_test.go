@@ -13,3 +13,15 @@ func TestBuildRequiredDatasetsForAclPolicies(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildRequiredDatasetsForSubnetPolicies(t *testing.T) {
+	required := buildRequiredDatasets(map[string][]string{
+		"subnet": {"/tmp/policies"},
+	})
+
+	for _, dataset := range []string{"vpcs", "subnets", "route_tables", "network_acls", "internet_gateways", "flow_logs", "log_groups"} {
+		if !required[dataset] {
+			t.Fatalf("expected %s to be required for subnet policies", dataset)
+		}
+	}
+}
