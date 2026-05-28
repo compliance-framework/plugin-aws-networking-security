@@ -69,8 +69,9 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 	}
 
 	defaultBehaviorMapping := map[string][]string{
-		"aws-vpc-sg-policies": {"sg"},
-		"aws-vpc-policies":    {"vpc"},
+		"aws-vpc-sg-policies":   {"sg"},
+		"aws-vpc-policies":      {"vpc"},
+		"aws-vpc-nacl-policies": {"acl"},
 	}
 	policyEval := request.WithDefaultPolicyBehavior(defaultBehaviorMapping)
 	policyPathsByBehavior := buildPolicyPathsByBehavior(policyEval)
@@ -127,7 +128,7 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 		}
 
 		if aclPolicyPaths := policyPathsByBehavior["acl"]; len(aclPolicyPaths) > 0 {
-			result := internal.EvaluateNetworkAclPolicies(deps, aclPolicyPaths, datasets.NetworkAcls, region)
+			result := internal.EvaluateNetworkAclPolicies(deps, aclPolicyPaths, datasets.NetworkAcls, region, datasets)
 			if fatal := applyResourceEvaluationErrors(result, &evalStatus, &accumulatedErrors, false); fatal != nil {
 				return &proto.EvalResponse{Status: proto.ExecutionStatus_FAILURE}, fatal
 			}
@@ -224,7 +225,7 @@ func buildRequiredDatasets(policyPathsByBehavior map[string][]string) map[string
 		case "sg":
 			markRequiredDatasets(requiredDatasets, "vpcs", "subnets", "security_groups", "network_interfaces", "network_acls", "route_tables", "internet_gateways", "vpc_endpoints", "flow_logs", "log_groups", "transit_gateway_attachments")
 		case "acl":
-			markRequiredDatasets(requiredDatasets, "network_acls")
+			markRequiredDatasets(requiredDatasets, "vpcs", "subnets", "network_acls", "route_tables", "internet_gateways", "flow_logs", "log_groups", "network_interfaces")
 		case "rt":
 			markRequiredDatasets(requiredDatasets, "route_tables")
 		case "igw":

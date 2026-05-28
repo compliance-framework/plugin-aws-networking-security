@@ -147,3 +147,24 @@ func PrefixVpcEvidenceTitles(evidences []*proto.Evidence, vpcID string) {
 		evidence.Title = vpcID + " | " + title
 	}
 }
+
+func PrefixNetworkAclEvidenceTitles(evidences []*proto.Evidence, networkAclName string) {
+	networkAclName = strings.TrimSpace(networkAclName)
+	if networkAclName == "" {
+		return
+	}
+
+	for _, evidence := range evidences {
+		if evidence == nil {
+			continue
+		}
+
+		title := strings.TrimSpace(evidence.Title)
+		if title == "" {
+			evidence.Title = networkAclName
+			continue
+		}
+
+		evidence.Title = networkAclName + " | " + title
+	}
+}

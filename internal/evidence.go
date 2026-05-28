@@ -315,12 +315,11 @@ func BuildNetworkAclEvidenceContext(acl types.NetworkAcl, region string) Network
 	vpcId := aws.ToString(acl.VpcId)
 
 	labels := map[string]string{
-		"provider":   "aws",
-		"type":       string(ResourceTypeNetworkAcl),
-		"acl-id":     aclId,
-		"vpc-id":     vpcId,
-		"is-default": fmt.Sprintf("%v", acl.IsDefault),
-		"region":     region,
+		"provider": "aws",
+		"type":     string(ResourceTypeNetworkAcl),
+		"acl-id":   aclId,
+		"vpc-id":   vpcId,
+		"region":   region,
 	}
 
 	components := []*proto.Component{
