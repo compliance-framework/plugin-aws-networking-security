@@ -22,7 +22,7 @@ func EvaluateNetworkAclPolicies(deps EvaluationDependencies, policyPaths []strin
 			deps.Logger.Error("unable to build Network ACL policy input", "network_acl_id", aws.ToString(acl.NetworkAclId), "region", region, "error", err)
 		},
 		func(evidences []*proto.Evidence, acl types.NetworkAcl) {
-			PrefixNetworkAclEvidenceTitles(evidences, NetworkAclDisplayName(acl))
+			PrefixEvidenceTitles(evidences, NetworkAclDisplayName(acl))
 		},
 	)
 }

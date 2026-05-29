@@ -25,3 +25,15 @@ func TestBuildRequiredDatasetsForSubnetPolicies(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildRequiredDatasetsForRouteTablePolicies(t *testing.T) {
+	required := buildRequiredDatasets(map[string][]string{
+		"rt": {"/tmp/policies"},
+	})
+
+	for _, dataset := range []string{"vpcs", "subnets", "route_tables", "internet_gateways", "vpc_endpoints", "transit_gateway_attachments"} {
+		if !required[dataset] {
+			t.Fatalf("expected %s to be required for route table policies", dataset)
+		}
+	}
+}

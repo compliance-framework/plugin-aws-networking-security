@@ -22,7 +22,7 @@ func EvaluateVpcPolicies(deps EvaluationDependencies, policyPaths []string, vpcs
 			deps.Logger.Error("unable to build VPC policy input", "vpc_id", aws.ToString(vpc.VpcId), "region", region, "error", err)
 		},
 		func(evidences []*proto.Evidence, vpc types.Vpc) {
-			PrefixVpcEvidenceTitles(evidences, VpcDisplayName(vpc))
+			PrefixEvidenceTitles(evidences, VpcDisplayName(vpc))
 		},
 	)
 }

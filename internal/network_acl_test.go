@@ -36,7 +36,7 @@ func TestPrefixNetworkAclEvidenceTitles(t *testing.T) {
 		nil,
 	}
 
-	PrefixNetworkAclEvidenceTitles(evidences, "acl-123")
+	PrefixEvidenceTitles(evidences, "acl-123")
 
 	if got := evidences[0].Title; got != "acl-123 | Network ACL should set required tags" {
 		t.Fatalf("prefixed title = %q", got)
