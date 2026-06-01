@@ -89,7 +89,7 @@ func BuildVpcEvidenceContext(vpc types.Vpc, region string) VpcEvidenceContext {
 	labels := map[string]string{
 		"provider": "aws",
 		"type":     string(ResourceTypeVPC),
-		"vpc-id":   vpcId,
+		"vpc_id":   vpcId,
 		"cidr":     aws.ToString(vpc.CidrBlock),
 		"region":   region,
 	}
@@ -163,8 +163,8 @@ func BuildSubnetEvidenceContext(subnet types.Subnet, region string) SubnetEviden
 	labels := map[string]string{
 		"provider":  "aws",
 		"type":      string(ResourceTypeSubnet),
-		"subnet-id": subnetId,
-		"vpc-id":    vpcId,
+		"subnet_id": subnetId,
+		"vpc_id":    vpcId,
 		"cidr":      aws.ToString(subnet.CidrBlock),
 		"az":        aws.ToString(subnet.AvailabilityZone),
 		"region":    region,
@@ -247,8 +247,8 @@ func BuildSecurityGroupEvidenceContext(group types.SecurityGroup, region string)
 	labels := map[string]string{
 		"provider": "aws",
 		"type":     string(ResourceTypeSecurityGroup),
-		"group-id": groupId,
-		"_vpc-id":  vpcId,
+		"group_id": groupId,
+		"vpc_id":   vpcId,
 		"region":   region,
 	}
 
@@ -317,8 +317,8 @@ func BuildNetworkAclEvidenceContext(acl types.NetworkAcl, region string) Network
 	labels := map[string]string{
 		"provider": "aws",
 		"type":     string(ResourceTypeNetworkAcl),
-		"acl-id":   aclId,
-		"vpc-id":   vpcId,
+		"acl_id":   aclId,
+		"vpc_id":   vpcId,
 		"region":   region,
 	}
 
@@ -391,8 +391,8 @@ func BuildRouteTableEvidenceContext(routeTable types.RouteTable, region string) 
 	labels := map[string]string{
 		"provider":       "aws",
 		"type":           string(ResourceTypeRouteTable),
-		"route-table-id": rtId,
-		"vpc-id":         vpcId,
+		"route_table_id": rtId,
+		"vpc_id":         vpcId,
 		"region":         region,
 	}
 
@@ -466,8 +466,8 @@ func BuildInternetGatewayEvidenceContext(igw types.InternetGateway, region strin
 	labels := map[string]string{
 		"provider": "aws",
 		"type":     string(ResourceTypeInternetGateway),
-		"igw-id":   igwId,
-		"vpc-id":   vpcId,
+		"igw_id":   igwId,
+		"vpc_id":   vpcId,
 		"region":   region,
 	}
 
@@ -536,9 +536,9 @@ func BuildVpcEndpointEvidenceContext(endpoint types.VpcEndpoint, region string) 
 	labels := map[string]string{
 		"provider":     "aws",
 		"type":         string(ResourceTypeVpcEndpoint),
-		"endpoint-id":  endpointId,
-		"vpc-id":       vpcId,
-		"service-name": aws.ToString(endpoint.ServiceName),
+		"endpoint_id":  endpointId,
+		"vpc_id":       vpcId,
+		"service_name": aws.ToString(endpoint.ServiceName),
 		"state":        string(endpoint.State),
 		"region":       region,
 	}
@@ -611,10 +611,10 @@ func BuildFlowLogEvidenceContext(flowLog types.FlowLog, region string) FlowLogEv
 	labels := map[string]string{
 		"provider":        "aws",
 		"type":            string(ResourceTypeFlowLog),
-		"flow-log-id":     flowLogId,
-		"resource-id":     aws.ToString(flowLog.ResourceId),
-		"traffic-type":    string(flowLog.TrafficType),
-		"flow-log-status": aws.ToString(flowLog.FlowLogStatus),
+		"flow_log_id":     flowLogId,
+		"resource_id":     aws.ToString(flowLog.ResourceId),
+		"traffic_type":    string(flowLog.TrafficType),
+		"flow_log_status": aws.ToString(flowLog.FlowLogStatus),
 		"region":          region,
 	}
 
@@ -690,7 +690,7 @@ func BuildLogGroupEvidenceContext(logGroup cloudwatchlogstypes.LogGroup, region 
 	labels := map[string]string{
 		"provider":       "aws",
 		"type":           string(ResourceTypeLogGroup),
-		"log-group-name": logGroupName,
+		"log_group_name": logGroupName,
 		"region":         region,
 	}
 

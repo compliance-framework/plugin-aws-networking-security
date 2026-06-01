@@ -37,3 +37,22 @@ func TestBuildRequiredDatasetsForRouteTablePolicies(t *testing.T) {
 		}
 	}
 }
+
+func TestSupportedPolicyBehaviorsOnlyIncludesPrimaryVpcBundles(t *testing.T) {
+	behaviors := map[string]bool{}
+	for _, behavior := range supportedPolicyBehaviors() {
+		behaviors[behavior] = true
+	}
+
+	for _, expected := range []string{"vpc", "subnet", "sg", "acl", "rt"} {
+		if !behaviors[expected] {
+			t.Fatalf("expected behavior %s to be supported", expected)
+		}
+	}
+
+	for _, contextOnly := range []string{"igw", "endpoint", "flow-log", "log-group"} {
+		if behaviors[contextOnly] {
+			t.Fatalf("context-only behavior %s must not be supported directly", contextOnly)
+		}
+	}
+}

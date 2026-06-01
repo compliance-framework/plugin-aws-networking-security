@@ -31,7 +31,8 @@ func (l *CompliancePlugin) Configure(req *proto.ConfigureRequest) (*proto.Config
 }
 
 func (l *CompliancePlugin) Init(req *proto.InitRequest, apiHelper runner.ApiHelper) (*proto.InitResponse, error) {
-	return &proto.InitResponse{}, nil
+	ctx := context.Background()
+	return runner.InitWithSubjectsAndRisksFromPolicies(ctx, l.logger, req, apiHelper, buildSubjectTemplates())
 }
 
 func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.ApiHelper) (*proto.EvalResponse, error) {
@@ -143,33 +144,6 @@ func (l *CompliancePlugin) Eval(request *proto.EvalRequest, apiHelper runner.Api
 			}
 		}
 
-		if internetGatewayPolicyPaths := policyPathsByBehavior["igw"]; len(internetGatewayPolicyPaths) > 0 {
-			result := internal.EvaluateInternetGatewayPolicies(deps, internetGatewayPolicyPaths, datasets.InternetGateways, region)
-			if fatal := applyResourceEvaluationErrors(result, &evalStatus, &accumulatedErrors, false); fatal != nil {
-				return &proto.EvalResponse{Status: proto.ExecutionStatus_FAILURE}, fatal
-			}
-		}
-
-		if vpcEndpointPolicyPaths := policyPathsByBehavior["endpoint"]; len(vpcEndpointPolicyPaths) > 0 {
-			result := internal.EvaluateVpcEndpointPolicies(deps, vpcEndpointPolicyPaths, datasets.VpcEndpoints, region)
-			if fatal := applyResourceEvaluationErrors(result, &evalStatus, &accumulatedErrors, false); fatal != nil {
-				return &proto.EvalResponse{Status: proto.ExecutionStatus_FAILURE}, fatal
-			}
-		}
-
-		if flowLogPolicyPaths := policyPathsByBehavior["flow-log"]; len(flowLogPolicyPaths) > 0 {
-			result := internal.EvaluateFlowLogPolicies(deps, flowLogPolicyPaths, datasets.FlowLogs, region)
-			if fatal := applyResourceEvaluationErrors(result, &evalStatus, &accumulatedErrors, false); fatal != nil {
-				return &proto.EvalResponse{Status: proto.ExecutionStatus_FAILURE}, fatal
-			}
-		}
-
-		if logGroupPolicyPaths := policyPathsByBehavior["log-group"]; len(logGroupPolicyPaths) > 0 {
-			result := internal.EvaluateLogGroupPolicies(deps, logGroupPolicyPaths, datasets.LogGroups, region)
-			if fatal := applyResourceEvaluationErrors(result, &evalStatus, &accumulatedErrors, false); fatal != nil {
-				return &proto.EvalResponse{Status: proto.ExecutionStatus_FAILURE}, fatal
-			}
-		}
 	}
 
 	return &proto.EvalResponse{
@@ -194,10 +168,6 @@ func supportedPolicyBehaviors() []string {
 		"sg",
 		"acl",
 		"rt",
-		"igw",
-		"endpoint",
-		"flow-log",
-		"log-group",
 	}
 }
 
@@ -230,14 +200,6 @@ func buildRequiredDatasets(policyPathsByBehavior map[string][]string) map[string
 			markRequiredDatasets(requiredDatasets, "vpcs", "subnets", "network_acls", "route_tables", "internet_gateways", "flow_logs", "log_groups", "network_interfaces")
 		case "rt":
 			markRequiredDatasets(requiredDatasets, "vpcs", "subnets", "route_tables", "internet_gateways", "vpc_endpoints", "transit_gateway_attachments")
-		case "igw":
-			markRequiredDatasets(requiredDatasets, "internet_gateways")
-		case "endpoint":
-			markRequiredDatasets(requiredDatasets, "vpc_endpoints")
-		case "flow-log":
-			markRequiredDatasets(requiredDatasets, "flow_logs")
-		case "log-group":
-			markRequiredDatasets(requiredDatasets, "log_groups")
 		default:
 			continue
 		}
