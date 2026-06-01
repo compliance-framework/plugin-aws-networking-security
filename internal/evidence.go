@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cloudwatchlogstypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
@@ -124,7 +125,7 @@ func BuildVpcEvidenceContext(vpc types.Vpc, region string) VpcEvidenceContext {
 				},
 				{
 					Name:  "is-default",
-					Value: fmt.Sprintf("%v", vpc.IsDefault),
+					Value: strconv.FormatBool(aws.ToBool(vpc.IsDefault)),
 				},
 			},
 			ImplementedComponents: []*proto.InventoryItemImplementedComponent{
@@ -208,7 +209,7 @@ func BuildSubnetEvidenceContext(subnet types.Subnet, region string) SubnetEviden
 				},
 				{
 					Name:  "map-public-ip-on-launch",
-					Value: fmt.Sprintf("%v", subnet.MapPublicIpOnLaunch),
+					Value: strconv.FormatBool(aws.ToBool(subnet.MapPublicIpOnLaunch)),
 				},
 			},
 			ImplementedComponents: []*proto.InventoryItemImplementedComponent{
@@ -348,7 +349,7 @@ func BuildNetworkAclEvidenceContext(acl types.NetworkAcl, region string) Network
 				},
 				{
 					Name:  "is-default",
-					Value: fmt.Sprintf("%v", acl.IsDefault),
+					Value: strconv.FormatBool(aws.ToBool(acl.IsDefault)),
 				},
 				{
 					Name:  "owner-id",

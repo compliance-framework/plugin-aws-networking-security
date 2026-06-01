@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestBuildRequiredDatasetsForAclPolicies(t *testing.T) {
 	required := buildRequiredDatasets(map[string][]string{
@@ -39,20 +42,8 @@ func TestBuildRequiredDatasetsForRouteTablePolicies(t *testing.T) {
 }
 
 func TestSupportedPolicyBehaviorsOnlyIncludesPrimaryVpcBundles(t *testing.T) {
-	behaviors := map[string]bool{}
-	for _, behavior := range supportedPolicyBehaviors() {
-		behaviors[behavior] = true
-	}
-
-	for _, expected := range []string{"vpc", "subnet", "sg", "acl", "rt"} {
-		if !behaviors[expected] {
-			t.Fatalf("expected behavior %s to be supported", expected)
-		}
-	}
-
-	for _, contextOnly := range []string{"igw", "endpoint", "flow-log", "log-group"} {
-		if behaviors[contextOnly] {
-			t.Fatalf("context-only behavior %s must not be supported directly", contextOnly)
-		}
+	expected := []string{"vpc", "subnet", "sg", "acl", "rt"}
+	if actual := supportedPolicyBehaviors(); !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("supportedPolicyBehaviors() = %v, want exactly %v", actual, expected)
 	}
 }

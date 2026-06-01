@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cloudwatchlogstypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/compliance-framework/agent/runner/proto"
 )
 
 func TestEvidenceLabelKeysUseUnderscoreNotation(t *testing.T) {
@@ -92,4 +93,41 @@ func TestEvidenceLabelKeysUseUnderscoreNotation(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestEvidenceBoolPointerPropertiesRenderAsBoolStrings(t *testing.T) {
+	vpcCtx := BuildVpcEvidenceContext(types.Vpc{
+		VpcId:     aws.String("vpc-123"),
+		IsDefault: aws.Bool(true),
+	}, "eu-west-2")
+	assertInventoryProperty(t, vpcCtx.Inventory[0].Props, "is-default", "true")
+
+	subnetCtx := BuildSubnetEvidenceContext(types.Subnet{
+		SubnetId:            aws.String("subnet-123"),
+		VpcId:               aws.String("vpc-123"),
+		MapPublicIpOnLaunch: aws.Bool(false),
+	}, "eu-west-2")
+	assertInventoryProperty(t, subnetCtx.Inventory[0].Props, "map-public-ip-on-launch", "false")
+
+	aclCtx := BuildNetworkAclEvidenceContext(types.NetworkAcl{
+		NetworkAclId: aws.String("acl-123"),
+		VpcId:        aws.String("vpc-123"),
+		IsDefault:    aws.Bool(true),
+	}, "eu-west-2")
+	assertInventoryProperty(t, aclCtx.Inventory[0].Props, "is-default", "true")
+}
+
+func assertInventoryProperty(t *testing.T, props []*proto.Property, name string, expected string) {
+	t.Helper()
+
+	for _, prop := range props {
+		if prop.Name == name {
+			if prop.Value != expected {
+				t.Fatalf("property %s = %q, want %q", name, prop.Value, expected)
+			}
+			return
+		}
+	}
+
+	t.Fatalf("property %s not found", name)
 }

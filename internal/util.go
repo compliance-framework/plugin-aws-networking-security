@@ -40,8 +40,11 @@ func ResolveRegions(config map[string]string) []string {
 	}
 
 	// Check for single region
-	if regionStr, ok := config["region"]; ok && regionStr != "" {
-		return []string{strings.TrimSpace(regionStr)}
+	if regionStr, ok := config["region"]; ok {
+		region := strings.TrimSpace(regionStr)
+		if region != "" {
+			return []string{region}
+		}
 	}
 
 	// Fall back to environment variable

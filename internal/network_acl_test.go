@@ -38,10 +38,10 @@ func TestPrefixNetworkAclEvidenceTitles(t *testing.T) {
 
 	PrefixEvidenceTitles(evidences, "acl-123")
 
-	if got := evidences[0].Title; got != "acl-123 | Network ACL should set required tags" {
+	if got := evidences[0].GetTitle(); got != "acl-123 | Network ACL should set required tags" {
 		t.Fatalf("prefixed title = %q", got)
 	}
-	if got := evidences[1].Title; got != "acl-123" {
+	if got := evidences[1].GetTitle(); got != "acl-123" {
 		t.Fatalf("empty title fallback = %q", got)
 	}
 }

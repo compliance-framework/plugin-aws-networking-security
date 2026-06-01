@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"iter"
 
 	cloudwatchlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -33,7 +34,14 @@ func CollectRegionDatasets(ctx context.Context, logger hclog.Logger, client *ec2
 		err      error
 	)
 
-	if requiredDatasets["vpcs"] {
+	if requiresEC2Client(requiredDatasets) && client == nil {
+		return RegionDatasets{}, errors.New("ec2 client is required for requested region datasets")
+	}
+	if requiredDatasets["log_groups"] && logsClient == nil {
+		return RegionDatasets{}, errors.New("cloudwatch logs client is required for requested region datasets")
+	}
+
+	if requiresVpcCollection(requiredDatasets) {
 		datasets.Vpcs, err = collectSequence(PaginatedDescribeVpcs(ctx, client))
 		if err != nil {
 			logger.Error("unable to get VPC", "error", err)
@@ -149,4 +157,30 @@ func collectSequence[T any](seq iter.Seq2[T, error]) ([]T, error) {
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func requiresVpcCollection(requiredDatasets map[string]bool) bool {
+	return requiredDatasets["vpcs"] || requiredDatasets["vpc_attributes"]
+}
+
+func requiresEC2Client(requiredDatasets map[string]bool) bool {
+	for _, datasetName := range []string{
+		"vpcs",
+		"vpc_attributes",
+		"dhcp_options",
+		"subnets",
+		"security_groups",
+		"network_interfaces",
+		"network_acls",
+		"route_tables",
+		"internet_gateways",
+		"vpc_endpoints",
+		"flow_logs",
+		"transit_gateway_attachments",
+	} {
+		if requiredDatasets[datasetName] {
+			return true
+		}
+	}
+	return false
 }

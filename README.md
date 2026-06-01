@@ -77,8 +77,8 @@ This writes the compiled plugin to `dist/plugin`.
 
 ## Related repositories
 
-- `../plugin-aws-vpc-policies`
-- `../plugin-aws-vpc-subnet-policies`
-- `../plugin-aws-vpc-sg-policies`
-- `../plugin-aws-vpc-nacl-policies`
-- `../plugin-aws-vpc-rt-policies`
+- [plugin-aws-vpc-policies](https://github.com/compliance-framework/plugin-aws-vpc-policies)
+- [plugin-aws-vpc-subnet-policies](https://github.com/compliance-framework/plugin-aws-vpc-subnet-policies)
+- [plugin-aws-vpc-sg-policies](https://github.com/compliance-framework/plugin-aws-vpc-sg-policies)
+- [plugin-aws-vpc-nacl-policies](https://github.com/compliance-framework/plugin-aws-vpc-nacl-policies)
+- [plugin-aws-vpc-rt-policies](https://github.com/compliance-framework/plugin-aws-vpc-rt-policies)

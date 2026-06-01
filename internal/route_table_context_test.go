@@ -63,7 +63,7 @@ func TestBuildRouteTablePolicyInputIncludesRouteTableContext(t *testing.T) {
 		t.Fatalf("input[route_table_context] should be a map")
 	}
 
-	current := contextMap["current"].(map[string]interface{})
+	current := requireMapValue(t, contextMap, "current")
 	if current["route_table_id"] != "rtb-public" {
 		t.Fatalf("current.route_table_id = %v, want rtb-public", current["route_table_id"])
 	}
@@ -101,7 +101,7 @@ func TestBuildRouteTablePolicyInputIncludesRouteTableContext(t *testing.T) {
 	assertItemCount(t, contextMap, "route_summaries", 3)
 	assertItemCount(t, contextMap, "blackhole_routes", 1)
 
-	vpc := contextMap["vpc"].(map[string]interface{})
+	vpc := requireMapValue(t, contextMap, "vpc")
 	if vpc["VpcId"] != "vpc-123" {
 		t.Fatalf("vpc.VpcId = %v, want vpc-123", vpc["VpcId"])
 	}
@@ -129,8 +129,8 @@ func TestBuildRouteTablePolicyInputIncludesImplicitMainRouteAssociations(t *test
 		t.Fatalf("BuildRouteTablePolicyInput returned error: %v", err)
 	}
 
-	contextMap := input["route_table_context"].(map[string]interface{})
-	current := contextMap["current"].(map[string]interface{})
+	contextMap := requireMapValue(t, input, "route_table_context")
+	current := requireMapValue(t, contextMap, "current")
 	if current["is_main"] != true {
 		t.Fatalf("current.is_main = %v, want true", current["is_main"])
 	}
@@ -141,10 +141,30 @@ func TestBuildRouteTablePolicyInputIncludesImplicitMainRouteAssociations(t *test
 		t.Fatalf("current.effective_subnet_association_count = %v, want 1", current["effective_subnet_association_count"])
 	}
 
-	implicitSubnetIDs := current["implicitly_associated_subnet_ids"].([]interface{})
+	implicitSubnetIDs := requireListValue(t, current, "implicitly_associated_subnet_ids")
 	if len(implicitSubnetIDs) != 1 || implicitSubnetIDs[0] != "subnet-main-a" {
 		t.Fatalf("implicitly_associated_subnet_ids = %v, want [subnet-main-a]", implicitSubnetIDs)
 	}
 	assertOneItem(t, contextMap, "implicitly_associated_subnets")
 	assertOneItem(t, contextMap, "effectively_associated_subnets")
+}
+
+func requireMapValue(t *testing.T, values map[string]interface{}, key string) map[string]interface{} {
+	t.Helper()
+
+	value, ok := values[key].(map[string]interface{})
+	if !ok {
+		t.Fatalf("%s should be a map", key)
+	}
+	return value
+}
+
+func requireListValue(t *testing.T, values map[string]interface{}, key string) []interface{} {
+	t.Helper()
+
+	value, ok := values[key].([]interface{})
+	if !ok {
+		t.Fatalf("%s should be a list", key)
+	}
+	return value
 }

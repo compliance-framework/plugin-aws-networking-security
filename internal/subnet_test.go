@@ -38,10 +38,10 @@ func TestPrefixSubnetEvidenceTitles(t *testing.T) {
 
 	PrefixEvidenceTitles(evidences, "subnet-123")
 
-	if got := evidences[0].Title; got != "subnet-123 | Subnet should set required tags" {
+	if got := evidences[0].GetTitle(); got != "subnet-123 | Subnet should set required tags" {
 		t.Fatalf("prefixed title = %q", got)
 	}
-	if got := evidences[1].Title; got != "subnet-123" {
+	if got := evidences[1].GetTitle(); got != "subnet-123" {
 		t.Fatalf("empty title fallback = %q", got)
 	}
 }

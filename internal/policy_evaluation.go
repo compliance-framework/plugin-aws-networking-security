@@ -117,7 +117,7 @@ func PrefixEvidenceTitles(evidences []*proto.Evidence, prefix string) {
 			continue
 		}
 
-		title := strings.TrimSpace(evidence.Title)
+		title := strings.TrimSpace(evidence.GetTitle())
 		if title == "" {
 			evidence.Title = prefix
 			continue

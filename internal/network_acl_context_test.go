@@ -71,7 +71,10 @@ func TestBuildNetworkAclPolicyInputIncludesNaclContext(t *testing.T) {
 		t.Fatalf("input[nacl_context] should be a map")
 	}
 
-	current := contextMap["current"].(map[string]interface{})
+	current, ok := contextMap["current"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("nacl_context.current should be a map")
+	}
 	if current["network_acl_id"] != "acl-123" {
 		t.Fatalf("current.network_acl_id = %v, want acl-123", current["network_acl_id"])
 	}
@@ -98,7 +101,10 @@ func TestBuildNetworkAclPolicyInputIncludesNaclContext(t *testing.T) {
 	assertItemCount(t, contextMap, "flow_logs_for_associated_subnets", 1)
 	assertItemCount(t, contextMap, "log_groups_for_related_flow_logs", 2)
 
-	vpc := contextMap["vpc"].(map[string]interface{})
+	vpc, ok := contextMap["vpc"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("nacl_context.vpc should be a map")
+	}
 	if vpc["VpcId"] != "vpc-123" {
 		t.Fatalf("vpc.VpcId = %v, want vpc-123", vpc["VpcId"])
 	}
